@@ -39,22 +39,35 @@ fi
 
 if [ "$(id -u)" = "0" ] && id app >/dev/null 2>&1; then
   # Hand the data dir to the unprivileged app user, then drop root for both services.
-  chown -R app:app "$DATA_DIR"
-  chmod 700 "$(dirname "$SYNCID_KEY_PATH")"
+  chown -R app:app "$DATA_DIR" 2>/dev/null || true
+  chmod 700 "$(dirname "$SYNCID_KEY_PATH")" "$SYNCID_KEY_PATH" 2>/dev/null || true
   RUN_AS=(setpriv --reuid=app --regid=app --init-groups --)
+  # Some hosts drop CAP_SETUID/SETGID; fall back to the current user rather than fail to start.
+  if ! "${RUN_AS[@]}" true 2>/dev/null; then
+    echo "[start] WARNING: cannot drop privileges here; running as $(id -un)" >&2
+    RUN_AS=()
+  fi
 else
   RUN_AS=()
 fi
 
 echo "[start] data dir: $DATA_DIR (public mode: $TRUTHLENS_PUBLIC)"
-"${RUN_AS[@]}" python -m uvicorn syncid.app:app --host 127.0.0.1 --port 8001 --no-server-header --log-level warning &
+echo "[start] running as: $(id -un) ${RUN_AS[*]:+(dropping to app)}"
+"${RUN_AS[@]}" python -m uvicorn syncid.app:app --host 127.0.0.1 --port 8001 --no-server-header --log-level info --no-access-log 2>&1 | sed -u 's/^/[syncid] /' &
 SYNCID_PID=$!
 
-for _ in $(seq 1 30); do
-  if curl -fsS http://127.0.0.1:8001/health >/dev/null 2>&1; then echo "[start] Sync ID ready on 127.0.0.1:8001"; break; fi
-  if ! kill -0 "$SYNCID_PID" 2>/dev/null; then echo "[start] Sync ID failed to start" >&2; exit 1; fi
+ready=0
+for _ in $(seq 1 90); do
+  if curl -fsS http://127.0.0.1:8001/health >/dev/null 2>&1; then ready=1; echo "[start] Sync ID ready on 127.0.0.1:8001"; break; fi
+  if ! kill -0 "$SYNCID_PID" 2>/dev/null; then break; fi
   sleep 1
 done
+if [ "$ready" != 1 ]; then
+  # Keep the public site up: TruthLens reports Sync ID as unavailable instead of the whole service crash-looping.
+  echo "[start] WARNING: Sync ID did not start (see [syncid] lines above); continuing with TruthLens only" >&2
+  ( while true; do sleep 3600; done ) &
+  SYNCID_PID=$!
+fi
 
 "${RUN_AS[@]}" python -m uvicorn truthlens.app:app --host 0.0.0.0 --port "$PORT" --no-server-header \
   --proxy-headers --forwarded-allow-ips='*' --timeout-keep-alive 30 &
