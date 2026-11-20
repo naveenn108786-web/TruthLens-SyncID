@@ -2,7 +2,7 @@
 import os
 import logging
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
@@ -13,14 +13,16 @@ from .forensics.c2pa_check import HAVE_C2PA
 from .pipeline import ROOT, case_dir, list_cases, load_case, run_case
 from .pdf import build_pdf
 from .media import MediaError, compatible_preview
+from .hardening import SecurityMiddleware, require_admin
 
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="TruthLens", version="0.3.0")
+app.add_middleware(SecurityMiddleware)
 registry.seed()   # demo originals on first start
 STATIC = os.path.join(os.path.dirname(__file__), "static")
 SAMPLES = os.path.join(ROOT, "samples", "demo")
-MAX_UPLOAD = 200 * 1024 * 1024
+MAX_UPLOAD = int(os.environ.get("TRUTHLENS_MAX_UPLOAD_MB", "200")) * 1024 * 1024
 DEMOS = {
     "edited": {"title": "Demo: edited copy of a registered photo", "files": ["rally_edited.jpg"], "caption": False},
     "original": {"title": "Demo: verified original", "files": ["rally_original.jpg"], "caption": False},
@@ -33,6 +35,26 @@ DEMO_FILES = sorted({f for d in DEMOS.values() for f in d["files"]})
 @app.get("/")
 def index():
     return FileResponse(os.path.join(STATIC, "index.html"))
+
+
+@app.exception_handler(Exception)
+async def unhandled(request: Request, ex: Exception):
+    # Log the traceback server-side; never send internals to the browser.
+    logger.exception("Unhandled error on %s %s", request.method, request.url.path)
+    return JSONResponse({"detail": "Internal server error"}, status_code=500)
+
+
+@app.get("/api/health")
+def health():
+    """Liveness/readiness for the hosting platform: database reachable; Sync ID reported, not required."""
+    import httpx
+    db.verify_chain()
+    try:
+        r = httpx.get(os.environ.get("SYNCID_URL", "http://127.0.0.1:8001").rstrip("/") + "/health", timeout=2.0, trust_env=False)
+        syncid = "ok" if r.status_code == 200 else f"http_{r.status_code}"
+    except httpx.HTTPError:
+        syncid = "unavailable"
+    return {"status": "ok", "service": "truthlens", "syncid": syncid}
 
 
 @app.get("/api/status")
@@ -55,7 +77,7 @@ async def analyze(files: list[UploadFile] = File(default=[]), caption: str = For
             while chunk := await f.read(1024 * 1024):
                 total += len(chunk)
                 if total > MAX_UPLOAD:
-                    raise HTTPException(413, "Upload too large for the prototype (200 MB limit)")
+                    raise HTTPException(413, f"Upload too large for the prototype ({MAX_UPLOAD // (1024 * 1024)} MB limit)")
                 chunks.append(chunk)
             b = b"".join(chunks)
             if b:
@@ -102,8 +124,13 @@ def registry_list():
 async def registry_add(files: list[UploadFile] = File(...), source: str = Form(""), note: str = Form("")):
     from .validation import validate_file
     added = []
+    if len(files) > 12:
+        raise HTTPException(400, "At most 12 files per registration")
     for f in files:
-        b = await f.read()
+        b = await f.read(MAX_UPLOAD + 1)
+        await f.close()
+        if len(b) > MAX_UPLOAD:
+            raise HTTPException(413, f"Registration too large ({MAX_UPLOAD // (1024 * 1024)} MB limit)")
         if b:
             try:
                 validate_file(f.filename, b)
@@ -119,10 +146,18 @@ def registry_file(rid: str):
     e = next((e for e in registry.load() if e["id"] == rid), None)
     if not e:
         raise HTTPException(404)
-    return FileResponse(registry.path_of(e))
+    path = registry.path_of(e)
+    with open(path, "rb") as f:
+        head = f.read(64)
+    from .validation import sniff
+    kind = sniff(head)[0]
+    # Content-derived type only, so an uploaded HTML/SVG-like text file can never render as a page.
+    mime = {"jpeg": "image/jpeg", "png": "image/png", "gif": "image/gif", "webp": "image/webp", "bmp": "image/bmp",
+            "tiff": "image/tiff"}.get(kind, "application/octet-stream")
+    return FileResponse(path, media_type=mime)
 
 
-@app.post("/api/registry/reset")
+@app.post("/api/registry/reset", dependencies=[Depends(require_admin)])
 def registry_reset():
     registry.reset_to_seed()
     return registry_list()
@@ -163,6 +198,13 @@ def artifact(cid: str, name: str):
     return FileResponse(_safe_file(cid, "artifacts", name))
 
 
+def _safe_fallback_mime(guessed):
+    # The filename-guessed type is only trusted for media; anything else (e.g. "notes.html") is served as plain text.
+    if guessed and guessed.split("/")[0] in ("image", "video", "audio") and "svg" not in guessed:
+        return guessed
+    return "text/plain; charset=utf-8"
+
+
 @app.get("/api/cases/{cid}/evidence/{eid}")
 def evidence(cid: str, eid: str):
     r = load_case(cid)
@@ -173,9 +215,10 @@ def evidence(cid: str, eid: str):
         raise HTTPException(404)
     sub, name = os.path.split(e["stored_as"])
     detected_mime = {"jpeg": "image/jpeg", "png": "image/png", "mp4/mov": "video/mp4", "avi": "video/x-msvideo",
-                     "mkv/webm": "video/webm", "wav": "audio/wav", "mp3": "audio/mpeg"}.get(e.get("detected_type"))
+                     "mkv/webm": "video/webm", "wav": "audio/wav", "mp3": "audio/mpeg",
+                     "text": "text/plain; charset=utf-8"}.get(e.get("detected_type"))
     return FileResponse(_safe_file(cid, sub, name), filename=e["filename"].replace(" (audio track)", ".wav"),
-                        media_type=detected_mime or e.get("mime"), content_disposition_type="inline")
+                        media_type=detected_mime or _safe_fallback_mime(e.get("mime")), content_disposition_type="inline")
 
 
 @app.get("/api/cases/{cid}/preview/{eid}")

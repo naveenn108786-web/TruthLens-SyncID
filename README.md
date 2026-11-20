@@ -36,6 +36,10 @@ The video, audio and caption checks remain as supporting multimodal evidence.
 > **Hard rule:** an image is never labelled fake because it is unregistered, has no metadata or has no C2PA
 > credentials. These are reported as neutral information with a score of 0. Detection results are indicators, not proof.
 
+## Live demo deployment
+
+Docker + Render free-plan deployment: see [docs/DEPLOY_RENDER.md](docs/DEPLOY_RENDER.md).
+
 ## Repository guide
 
 This repository contains two cooperating services:
