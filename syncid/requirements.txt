@@ -1,0 +1,9 @@
+fastapi>=0.110,<1
+uvicorn>=0.29,<1
+python-multipart>=0.0.9
+cryptography>=44,<51
+uuid6>=2024.7.10
+rfc8785>=0.1.4,<1
+httpx>=0.27,<1
+pytest>=8
+pillow>=10

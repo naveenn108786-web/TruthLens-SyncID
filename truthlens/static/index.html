@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0D1117">
+<title>TruthLens · Investigation workspace</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='14' cy='14' r='9' fill='none' stroke='%2314b8a6' stroke-width='3'/><line x1='21' y1='21' x2='29' y2='29' stroke='%2314b8a6' stroke-width='3'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;650;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="no-case">
+<header class="topbar">
+  <div class="brand"><span class="brand-icon"><svg width="25" height="25" viewBox="0 0 32 32" aria-hidden="true"><circle cx="14" cy="14" r="9" fill="none" stroke="currentColor" stroke-width="2.5"/><path d="m21 21 8 8M14 9v10M9 14h10" stroke="currentColor" stroke-width="2"/></svg></span><div><h1>TruthLens<span class="brand-label">FORENSIC WORKSPACE</span></h1><p>Don't Just Detect the Fake. Investigate Its Origin.</p></div></div>
+  <div class="top-right"><div class="header-case"><span class="eyebrow">CASE ID</span><span id="headerCase" class="mono">No case open</span></div><span id="analysisStatus" class="status-pill" role="status">Awaiting evidence</span></div>
+</header>
+<div class="workspace-bar"><span><i class="live-dot"></i> Investigation workspace <span class="bar-divider">/</span> <span class="muted">Evidence-led analysis</span></span><nav aria-label="Investigation tools"><button class="ghost small" data-panel="samplesPanel">Sample cases</button><button class="ghost small" data-panel="historyPanel">History &amp; search</button><button class="ghost small" data-panel="registryPanel">Originals registry</button></nav></div>
+<div class="layout">
+  <aside class="rail" id="rail" aria-label="Evidence upload">
+    <section class="upload"><div class="section-heading"><span class="eyebrow">01 / INTAKE</span><span class="muted small">New case</span></div><h2>Evidence upload</h2><p class="muted small">Add original media and its accompanying claim.</p>
+      <label class="lbl" for="title">INVESTIGATION TITLE</label><input id="title" placeholder="Name this investigation" autocomplete="off">
+      <div class="upload-types"><button data-upload="image/*" type="button"><span aria-hidden="true">▧</span> Image <small>JPEG, PNG &amp; more</small></button><button data-upload="video/*" type="button"><span aria-hidden="true">▷</span> Video <small>MP4, MOV &amp; more</small></button><button data-upload="audio/*" type="button"><span aria-hidden="true">≋</span> Audio <small>WAV, MP3 &amp; more</small></button></div>
+      <label class="drop" id="drop" tabindex="0" role="button" aria-label="Browse or drop evidence files"><input type="file" id="files" multiple accept="image/*,video/*,audio/*,.txt,.md,.srt,.vtt"><span class="drop-plus" aria-hidden="true">+</span><b>Drop evidence here</b><span class="small">or browse files · multiple files supported</span></label>
+      <ul id="filelist" class="filelist" aria-live="polite"></ul>
+      <label class="lbl" for="referenceImageFile">OPTIONAL ORIGINAL / REFERENCE IMAGE</label><input id="referenceImageFile" type="file" accept="image/*"><p class="small muted reference-note">Compare changed regions against a supplied reference. This does not verify its origin or identify AI-added objects.</p>
+      <label class="lbl" for="caption">CAPTION / TEXT / CLAIM</label><textarea id="caption" rows="4" placeholder="Paste the claim, caption or transcript to cross-check against the evidence…"></textarea>
+      <div id="intakeMsg" class="error hidden" role="alert"></div><button id="analyze" class="primary wide">Run forensic analysis <span aria-hidden="true">↗</span></button>
+      <p class="intake-note"><span aria-hidden="true">◇</span> Originals preserved. Every file hashed.<br>Analysis runs on the forensic backend.</p>
+    </section><div class="rail-bottom"><span class="live-dot"></span><span class="status" id="status">Checking engine availability…</span></div>
+  </aside>
+  <main id="main">
+    <section id="empty" class="view empty-workspace"><div class="card empty-preview"><div class="section-heading"><span class="eyebrow">02 / EVIDENCE VIEWER</span><span class="muted small">No evidence selected</span></div><div class="empty-center"><svg width="66" height="66" viewBox="0 0 64 64" aria-hidden="true"><rect x="7" y="10" width="50" height="42" rx="8" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="23" cy="24" r="5" fill="none" stroke="currentColor"/><path d="m9 45 16-13 10 8 9-10 12 15" fill="none" stroke="currentColor"/></svg><h2>Evidence preview</h2><p>Add media to begin, or open a saved investigation.</p><button class="small ghost" data-panel="samplesPanel">Explore a live sample ↗</button></div><span class="small muted">Heatmaps, annotations and comparisons appear after analysis.</span></div><div class="card empty-verdict"><span class="eyebrow">03 / ASSESSMENT</span><h3>Awaiting evidence</h3><p class="muted small">Actual findings and manipulation indicators will appear here.</p><div class="empty-modalities">Image · Not provided<br>Video · Not provided<br>Audio · Not provided<br>Text · Not provided</div><p class="proofnote small">Heuristic indicators, not probabilities. Human review required.</p></div></section>
+    <section id="running" class="view hidden" aria-live="polite"><div class="card running"><div class="spinner"></div><div><span class="eyebrow">FORENSIC ENGINE</span><h2>Investigating the evidence</h2><p class="muted" id="runningInfo"></p><p class="muted small">Actual processing steps will appear in the custody log when complete.</p></div></div></section>
+    <section id="case" class="view hidden" aria-label="Investigation results"></section>
+  </main>
+</div>
+<dialog id="samplesPanel" class="tool-dialog" aria-labelledby="samplesTitle"><div class="dialog-head"><div><span class="eyebrow">LIVE ANALYSIS</span><h2 id="samplesTitle">Sample investigations</h2></div><button class="ghost small" data-close aria-label="Close samples">✕</button></div><section id="demopanel"><p class="muted small">Bundled test files, analyzed live by the same forensic pipeline as uploads.</p><div id="demos" class="demos"></div></section></dialog>
+<dialog id="historyPanel" class="tool-dialog" aria-labelledby="historyTitle"><div class="dialog-head"><div><span class="eyebrow">CASE LIBRARY</span><h2 id="historyTitle">Investigation history <span class="muted small" id="hcount"></span></h2></div><button class="ghost small" data-close aria-label="Close history">✕</button></div><label class="lbl" for="hq">SEARCH INVESTIGATIONS</label><input id="hq" placeholder="Search title, case ID or finding"><ul id="history" class="history"><li class="muted">Loading investigations…</li></ul></dialog>
+<dialog id="registryPanel" class="tool-dialog" aria-labelledby="registryTitle"><div class="dialog-head"><div><span class="eyebrow">PROVENANCE</span><h2 id="registryTitle">Registry of originals <span class="muted small" id="regcount"></span></h2></div><button class="ghost small" data-close aria-label="Close registry">✕</button></div><section id="regbox" class="regbox"><p class="muted small">Register verified originals for exact SHA-256 and perceptual similarity comparisons.</p><ul id="registry" class="registry"></ul><label class="lbl" for="regsource">SOURCE</label><input id="regsource" placeholder="E.g. staff photographer or newsroom archive"><label class="drop small-drop" id="regdrop"><input type="file" id="regfiles" multiple accept="image/*"><span>+ Register original images</span></label><div id="regmsg" class="small muted" role="status"></div></section></dialog>
+<div id="zoom" class="zoom hidden" role="dialog" aria-label="Expanded evidence image" tabindex="-1"></div>
+<dialog id="syncidPanel" class="tool-dialog" aria-labelledby="syncidTitle"><div class="dialog-head"><div><span class="eyebrow">INDEPENDENT IDENTITY PROTOTYPE</span><h2 id="syncidTitle">Sync ID</h2></div><button class="ghost small" data-close aria-label="Close Sync ID">✕</button></div>
+<p class="muted small">Register a file or verify it against an existing Sync ID. Registration and valid signatures do not establish origin or ownership. The existing TruthLens registry is separate.</p>
+<div class="syncid-intake">
+<label class="lbl" for="syncidFile">CONTENT FILE (MAX 25 MiB)</label><input type="file" id="syncidFile">
+<label class="lbl" for="syncidValue">SYNC ID <span class="syncid-hint">UUIDv7</span></label>
+<div class="syncid-id-row"><input id="syncidValue" class="mono" placeholder="UUID returned by registration" autocomplete="off" spellcheck="false"><button class="ghost small" id="syncidCopy" type="button" disabled>Copy ID</button></div>
+<div class="syncid-actions"><button class="primary small" id="syncidRegister" type="button">Register with Sync ID</button><button class="ghost small" id="syncidVerify" type="button">Verify file</button><button class="ghost small" id="syncidDownload" type="button" disabled>Download Signed Record</button></div>
+</div>
+<div id="syncidNotice" class="syncid-notice" role="status" aria-live="polite"></div>
+<div id="syncidResult" aria-live="polite" aria-busy="false"></div></dialog>
+<script src="/static/app.js"></script>
+<script src="/static/syncid.js"></script>
+</body></html>

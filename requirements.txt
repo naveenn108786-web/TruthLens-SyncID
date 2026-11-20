@@ -1,0 +1,16 @@
+fastapi>=0.110
+uvicorn>=0.29
+python-multipart>=0.0.9
+numpy>=1.26
+pillow>=10.0
+opencv-python-headless>=4.9
+scipy>=1.11
+reportlab>=4.0
+anthropic>=0.40
+c2pa-python>=0.10   # optional: C2PA content-credential verification
+# System requirement: ffmpeg + ffprobe on PATH (for video/audio decoding)
+pytest>=8          # tests
+httpx              # FastAPI TestClient
+cryptography>=44,<51  # Sync ID Ed25519 (also verifies records in TruthLens)
+uuid6>=2024.7.10      # maintained UUIDv7 implementation for Python 3.10+
+rfc8785>=0.1.4,<1     # canonical JSON signing representation
